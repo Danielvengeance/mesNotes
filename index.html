@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suivi de notes</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1c2430;--muted:#6b7686;--accent:#2f6fed;--ok:#1f9d55;--mid:#d98b0b;--bad:#d64545;--line:#e3e7ee;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1a2029;--text:#e8ecf2;--muted:#8d98a8;--accent:#6b9bff;--line:#2a3340}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1a2029;--text:#e8ecf2;--muted:#8d98a8;--accent:#6b9bff;--line:#2a3340}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:8px 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{text-align:center}
+.stat b{display:block;font-size:1.5rem}
+.stat span{font-size:.75rem;color:var(--muted)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:3px}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem}
+button{padding:11px 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:1rem;font-weight:600;cursor:pointer}
+button.full{width:100%;margin-top:12px}
+button.del{background:transparent;color:var(--bad);padding:4px 8px;font-size:1.1rem}
+.subj{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.subj:last-child{border-bottom:0}
+.small{color:var(--muted);font-size:.8rem}
+.grade{font-weight:700}
+.ok{color:var(--ok)}.mid{color:var(--mid)}.bad{color:var(--bad)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.75rem}
+.empty{color:var(--muted);text-align:center;padding:10px}
+</style>
+</head>
+<body>
+<main>
+<h1>📚 Suivi de notes</h1>
+
+<div class="card stats">
+  <div class="stat"><b id="avg">–</b><span>Moyenne générale /20</span></div>
+  <div class="stat"><b id="count">0</b><span>Notes</span></div>
+  <div class="stat"><b id="best">–</b><span>Meilleure note /20</span></div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div><label for="subject">Matière</label><input id="subject" placeholder="ex. Microéconomie" list="subjects"><datalist id="subjects"></datalist></div>
+    <div><label for="coef">Coefficient</label><input id="coef" type="number" min="0.5" step="0.5" value="1"></div>
+    <div><label for="grade">Note</label><input id="grade" type="number" min="0" step="0.25" inputmode="decimal" placeholder="ex. 14.5"></div>
+    <div><label for="max">Barème (sur)</label><input id="max" type="number" min="1" step="1" value="20"></div>
+  </div>
+  <button class="full" id="add">Ajouter la note</button>
+  <div class="small" id="msg" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <strong>Moyenne par matière</strong>
+  <div id="subjList"></div>
+</div>
+
+<div class="card scroll">
+  <strong>Toutes les notes</strong>
+  <table>
+    <thead><tr><th>Matière</th><th>Note</th><th>Coef.</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+</main>
+
+<script>
+var KEY="suivi-notes-v1";
+var data=[];
+try{var s=localStorage.getItem(KEY);if(s){data=JSON.parse(s)||[];}}catch(e){data=[];}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}}
+function on20(n){return n.grade/n.max*20;}
+function cls(v){return v>=14?"ok":(v>=10?"mid":"bad");}
+function fmt(v){return (Math.round(v*100)/100).toString().replace(".",",");}
+function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML;}
+function render(){
+  var tw=0,ts=0,best=null;
+  data.forEach(function(n){var v=on20(n);ts+=v*n.coef;tw+=n.coef;if(best===null||v>best)best=v;});
+  var avgEl=document.getElementById("avg");
+  if(tw>0){var a=ts/tw;avgEl.textContent=fmt(a);avgEl.className=cls(a);}else{avgEl.textContent="–";avgEl.className="";}
+  document.getElementById("count").textContent=data.length;
+  document.getElementById("best").textContent=best===null?"–":fmt(best);
+  var groups={};
+  data.forEach(function(n){var k=n.subject;if(!groups[k])groups[k]={s:0,w:0,c:0};groups[k].s+=on20(n)*n.coef;groups[k].w+=n.coef;groups[k].c++;});
+  var names=Object.keys(groups).sort();
+  document.getElementById("subjList").innerHTML=names.length?names.map(function(k){
+    var g=groups[k],m=g.s/g.w;
+    return '<div class="subj"><span>'+esc(k)+' <span class="small">('+g.c+' note'+(g.c>1?'s':'')+')</span></span><span class="grade '+cls(m)+'">'+fmt(m)+' /20</span></div>';
+  }).join(""):'<div class="empty">Aucune matière pour l\'instant.</div>';
+  document.getElementById("subjects").innerHTML=names.map(function(k){return '<option value="'+esc(k)+'">';}).join("");
+  document.getElementById("rows").innerHTML=data.length?data.map(function(n,i){
+    return '<tr><td>'+esc(n.subject)+'</td><td class="grade '+cls(on20(n))+'">'+fmt(n.grade)+' / '+fmt(n.max)+'</td><td>'+fmt(n.coef)+'</td><td><button class="del" data-i="'+i+'" aria-label="Supprimer">✕</button></td></tr>';
+  }).join(""):'<tr><td colspan="4" class="empty">Ajoute ta première note ci-dessus.</td></tr>';
+}
+document.getElementById("add").addEventListener("click",function(){
+  var subject=document.getElementById("subject").value.trim();
+  var grade=parseFloat(document.getElementById("grade").value);
+  var max=parseFloat(document.getElementById("max").value);
+  var coef=parseFloat(document.getElementById("coef").value);
+  var msg=document.getElementById("msg");
+  if(!subject||isNaN(grade)||isNaN(max)||isNaN(coef)||max<=0||coef<=0){msg.textContent="Remplis la matière, la note, le barème et le coefficient.";return;}
+  if(grade<0||grade>max){msg.textContent="La note doit être comprise entre 0 et "+max+".";return;}
+  msg.textContent="";
+  data.push({subject:subject,grade:grade,max:max,coef:coef});
+  save();
+  document.getElementById("grade").value="";
+  render();
+});
+document.getElementById("rows").addEventListener("click",function(e){
+  var i=e.target.getAttribute("data-i");
+  if(i!==null){data.splice(parseInt(i,10),1);save();render();}
+});
+render();
+</script>
+</body>
+</html>
